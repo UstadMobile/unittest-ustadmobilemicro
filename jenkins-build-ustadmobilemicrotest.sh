@@ -21,6 +21,8 @@ fi
 
 NODEJS_SERVER="/opt/unittest-ustadmobilemicro/ustadmobilemicrotest-node-qunit-server.js"
 RESULT_DIR="/opt/unittest-ustadmobilemicro/result"
+RESULT_DIR="${WORKSPACE}/result"
+mkdir ${RESULT_DIR}
 ASSET_DIR="/opt/unittest-ustadmobilemicro/asset"
 RASPBERRY_PI2_IP="10.8.0.6"
 RASPBERRY_PI2_USER="pi"
