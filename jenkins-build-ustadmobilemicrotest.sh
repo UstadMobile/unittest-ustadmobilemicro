@@ -9,8 +9,10 @@ if [ -z "$WORKSPACE" ]; then
 	WORKSPACE=$1
 fi
 
+WORKSPACE=${WORKSPACE}/ports/j2me/
+
 cd $WORKSPACE
-if [ -f "${WORKSPACE}/ustadmobilemicro-build.properties" ]; then
+if [ -f "${WORKSPACE}/ustadmobilej2me-build.properties" ]; then
 	echo ""
 else
 	cp ${WORKSPACE}/ustadmobilemicro-build.default.properties ${WORKSPACE}/ustadmobilemicro-build.properties
@@ -23,7 +25,8 @@ NODEJS_SERVER="/opt/unittest-ustadmobilemicro/ustadmobilemicrotest-node-qunit-se
 RESULT_DIR="/opt/unittest-ustadmobilemicro/result"
 RESULT_DIR="${WORKSPACE}/result"
 mkdir ${RESULT_DIR}
-ASSET_DIR="/opt/unittest-ustadmobilemicro/asset"
+ASSET_DIR="${WORKSPACE}/asset"
+mkdir ${ASSET_DIR}
 RASPBERRY_PI2_IP="10.8.0.6"
 RASPBERRY_PI2_USER="pi"
 BUILD_NAME=`grep "<project name=\"" ${WORKSPACE}/antenna-build.xml | awk -F\" '{ print $2 }'`
@@ -42,15 +45,42 @@ DEVICES[1]="nokia"
 #DEVICES[3]="samsung"
 
 SUCCESS="false"
-echo "Building.."
+echo "Starting Buildg.."
 SUCCESS=false
 #sed -i.backup -e "s/.*<device>.*/    <device>${i}<\/device>/" ${WORKSPACE}/src/com/ustadmobile/app/tests/test-settings.xml
 sed -i.backup -e "s,.*<testposturl>.*,    <testposturl>${TESTPOSTURL}<\/testposturl>," ${WORKSPACE}/src/com/ustadmobile/app/tests/test-settings.xml
 
+echo "Clearning.."
+pwd
 #Clean would remove src-preprocessed-ANTENNA and classes-ANTENNA
+rm -rf ${WORKSPACE}/src-preprocessed-ANTENNA ${WORKSPACE}/classes-ANTENNA ${WORKSPACE}/dist-ANTENNA ${WORKSPACE}/lib
+rm -rf ${WORKSPACE}../../core/classes ${WORKSPACE}../../core/dist ${WORKSPACE}../../core/lib
 
+#New build steps
+echo "Geting libraried for J2ME.."
+pwd
 cd ${WORKSPACE}
 /usr/bin/ant -f antenna-build.xml getlibs
+
+echo "Getting Libraried for Core.."
+cd ${WORKSPACE}/../../core/
+pwd
+/usr/bin/ant -f antenna-build.xml getlibs
+
+echo "Building Core.."
+pwd
+/usr/bin/ant -f antenna-build.xml -lib /opt/antenna
+echo "Done building Core.."
+
+echo "Copying Core to J2ME.."
+pwd
+cp dist/*.jar ${WORKSPACE}/lib/
+cp dist/*.jad ${WORKSPACE}/lib/
+
+echo "Building J2ME.."
+cd ${WORKSPACE}
+#/usr/bin/ant -f antenna-build.xml getlibs
+#already did above.
 /usr/bin/ant -f antenna-build.xml -lib /opt/antenna
 if [ $? -eq 0 ]; then
     echo "Build success!\n"
