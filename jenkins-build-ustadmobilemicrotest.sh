@@ -73,10 +73,10 @@ pwd
 cd ${WORKSPACE}
 /usr/bin/ant -f antenna-build.xml getlibs
 
-#echo "Getting Libraried for Core.."
-#cd ${WORKSPACE}/../../core/
-#pwd
-#/usr/bin/ant -f antenna-build.xml getlibs
+echo "Getting Libraried for Core.."
+cd ${WORKSPACE}/../../core/
+pwd
+/usr/bin/ant -f antenna-build.xml getlibs
 
 #echo "Building Core.."
 #pwd
@@ -87,6 +87,8 @@ cd ${WORKSPACE}
 #pwd
 #cp dist/*.jar ${WORKSPACE}/lib/
 #cp dist/*.jad ${WORKSPACE}/lib/
+
+cd ${WORKSPACE} 
 
 echo "Running preprocessor on Core.."
 ./updatecore
