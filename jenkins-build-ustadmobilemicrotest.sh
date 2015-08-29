@@ -1,6 +1,8 @@
 #!/bin/bash
 export WTK_HOME=/opt/WTK2.5.2/
 
+echo "Workspace is: ${WORKSPACE}"
+
 if [ -z "$WORKSPACE" ]; then
 	if [ $# -ne 1 ]; then
     		echo "Give argument: .sh <workspace>"
@@ -9,10 +11,18 @@ if [ -z "$WORKSPACE" ]; then
 	WORKSPACE=$1
 fi
 
+echo "Workspace is: ${WORKSPACE}"
+
 WORKSPACE=${WORKSPACE}/ports/j2me/
 
 cd $WORKSPACE
-if [ -f "${WORKSPACE}/ustadmobilej2me-build.properties" ]; then
+
+echo "Checking.."
+if [ -f "/var/lib/jenkins/javakey/ustadmobilemicro-build.properties" ]; then
+    echo "Properties file found in javakey. Will sign this build according to the keystore"
+    sed -i.backup -e "s/property\ file\=\"ustadmobilemicro\-build\.properties\"/property\ file\=\"\/var\/lib\/jenkins\/javakey\/ustadmobilemicro-build.properties\"/" ${WORKSPACE}/antenna-build.xml
+
+elif [ -f "${WORKSPACE}/ustadmobilej2me-build.properties" ]; then
 	echo ""
 else
 	cp ${WORKSPACE}/ustadmobilemicro-build.default.properties ${WORKSPACE}/ustadmobilemicro-build.properties
@@ -34,10 +44,11 @@ ASSET_PORT="6822"
 CONTROL_PORT="8621"
 SERVER="http://devserver2.ustadmobile.com"
 TESTPOSTURL="${SERVER}:${CONTROL_PORT}"
-MAX_RESULT_CHECK=200
+MAX_RESULT_CHECK=300
 
-DEVICES[0]="lg"
-DEVICES[1]="nokia"
+DEVICES[0]="nokia"
+DEVICES[1]="alcatel"
+DEVICES[2]="lg"
 
 #DEVICES[0]="nokia"
 #DEVICES[1]="alcatel"
@@ -62,26 +73,37 @@ pwd
 cd ${WORKSPACE}
 /usr/bin/ant -f antenna-build.xml getlibs
 
-echo "Getting Libraried for Core.."
-cd ${WORKSPACE}/../../core/
-pwd
-/usr/bin/ant -f antenna-build.xml getlibs
+#echo "Getting Libraried for Core.."
+#cd ${WORKSPACE}/../../core/
+#pwd
+#/usr/bin/ant -f antenna-build.xml getlibs
 
-echo "Building Core.."
-pwd
-/usr/bin/ant -f antenna-build.xml -lib /opt/antenna
-echo "Done building Core.."
+#echo "Building Core.."
+#pwd
+#/usr/bin/ant -f antenna-build.xml -lib /opt/antenna
+#echo "Done building Core.."
 
-echo "Copying Core to J2ME.."
-pwd
-cp dist/*.jar ${WORKSPACE}/lib/
-cp dist/*.jad ${WORKSPACE}/lib/
+#echo "Copying Core to J2ME.."
+#pwd
+#cp dist/*.jar ${WORKSPACE}/lib/
+#cp dist/*.jad ${WORKSPACE}/lib/
+
+echo "Running preprocessor on Core.."
+./updatecore
+if [ $? -eq 0 ]; then
+    echo "Pre processing succeeded"
+else
+    echo "PreProcessing failed. Exiting.."
+    exit 1;
+fi
 
 echo "Building J2ME.."
 cd ${WORKSPACE}
 #/usr/bin/ant -f antenna-build.xml getlibs
 #already did above.
-/usr/bin/ant -f antenna-build.xml -lib /opt/antenna
+#sign it too!
+/usr/bin/ant -f antenna-build.xml -lib /opt/antenna sign
+
 if [ $? -eq 0 ]; then
     echo "Build success!\n"
 else
@@ -197,6 +219,15 @@ done
 
 if [ "${SUCCESS}" = "true" ]; then
  	echo "All devices Ran Tests OK."
+	mkdir "${WORKSPACE}/test-results/"
+	TRF="${WORKSPACE}/test-results/results.html"
+	>${TRF}
+        for file in ${RESULT_DIR}/node-qunit-testresults*
+	do 
+	    echo "${file}:" >> ${TRF}
+	    cat $file >> ${TRF}
+	done
+	echo "The test results are here: https://devserver2.ustadmobile.com:8081/job/ustadmobilemicro-gammu-pi/ws/ports/j2me/test-results/results.html"
 	exit 0;
 else
 	echo "Not All devices ran successfully..Please Check"
