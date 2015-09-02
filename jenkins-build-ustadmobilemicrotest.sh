@@ -1,7 +1,17 @@
 #!/bin/bash
 export WTK_HOME=/opt/WTK2.5.2/
+#/usr/lib/jvm/oracle/jdk1.8
+export JAVA_HOME=/usr/lib/jvm/oracle/jdk1.8
+
+export PATH=$JAVA_HOME/bin:$PATH
+
 
 echo "Workspace is: ${WORKSPACE}"
+mkdir "${WORKSPACE}/test-results/"
+TRF="${WORKSPACE}/test-results/results.html"
+>${TRF}
+
+TEST_RESULT_URL="https://devserver2.ustadmobile.com:8081/job/UstadMobile-J2ME-Gammu-Pi/ws/test-results/results.html"
 
 if [ -z "$WORKSPACE" ]; then
 	if [ $# -ne 1 ]; then
@@ -45,10 +55,10 @@ CONTROL_PORT="8621"
 SERVER="http://devserver2.ustadmobile.com"
 TESTPOSTURL="${SERVER}:${CONTROL_PORT}"
 MAX_RESULT_CHECK=300
-
+HTTPD_PORT=8055
 DEVICES[0]="nokia"
 DEVICES[1]="alcatel"
-DEVICES[2]="lg"
+#DEVICES[2]="lg"
 
 #DEVICES[0]="nokia"
 #DEVICES[1]="alcatel"
@@ -56,16 +66,13 @@ DEVICES[2]="lg"
 #DEVICES[3]="samsung"
 
 SUCCESS="false"
-echo "Starting Buildg.."
-SUCCESS=false
-#sed -i.backup -e "s/.*<device>.*/    <device>${i}<\/device>/" ${WORKSPACE}/src/com/ustadmobile/app/tests/test-settings.xml
-sed -i.backup -e "s,.*<testposturl>.*,    <testposturl>${TESTPOSTURL}<\/testposturl>," ${WORKSPACE}/src/com/ustadmobile/app/tests/test-settings.xml
 
 echo "Clearning.."
 pwd
 #Clean would remove src-preprocessed-ANTENNA and classes-ANTENNA
 rm -rf ${WORKSPACE}/src-preprocessed-ANTENNA ${WORKSPACE}/classes-ANTENNA ${WORKSPACE}/dist-ANTENNA ${WORKSPACE}/lib
 rm -rf ${WORKSPACE}../../core/classes ${WORKSPACE}../../core/dist ${WORKSPACE}../../core/lib
+
 
 #New build steps
 echo "Geting libraried for J2ME.."
@@ -78,38 +85,56 @@ cd ${WORKSPACE}/../../core/
 pwd
 /usr/bin/ant -f antenna-build.xml getlibs
 
-#echo "Building Core.."
-#pwd
-#/usr/bin/ant -f antenna-build.xml -lib /opt/antenna
-#echo "Done building Core.."
 
-#echo "Copying Core to J2ME.."
-#pwd
-#cp dist/*.jar ${WORKSPACE}/lib/
-#cp dist/*.jad ${WORKSPACE}/lib/
+cd ${WORKSPACE}
+echo "Starting Buildg.."
+SUCCESS=false
 
-cd ${WORKSPACE} 
+cd ../../testres
 
-echo "Running preprocessor on Core.."
+IPADDR=$(/sbin/ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' | head -n 1)
+
+./runserver.sh ${HTTPD_PORT}
+if [ $? != 0 ];then
+    echo "Cannot start server. Exiting.."
+    exit 1;
+fi
+DHDSERVERPID=$(cat DodgyHTTPD/dodgyhttpd.pid)
+
+cd $WORKSPACE
+
 ./updatecore
 if [ $? -eq 0 ]; then
     echo "Pre processing succeeded"
 else
     echo "PreProcessing failed. Exiting.."
+    echo "Killing server if started.."
+    kill $DHDSERVERPID
     exit 1;
 fi
 
+sed s/__TESTSERVERIP__/$IPADDR/g ../../core/test/com/ustadmobile/test/core/TestConstants.java | \
+    sed s/__TESTSERVERPORT__/${HTTPD_PORT}/g \
+    > ./src/com/ustadmobile/test/core/TestConstants.java
+
+TESTPOSTURL2="${IPADDR}:${HTTPD_PORT}"
+echo "Test POST URL is:  ${TESTPOSTURL}"
+echo "Test POST URL2 is: ${TESTPOSTURL2}"
+
+#sed -i.backup -e "s/.*<device>.*/    <device>${i}<\/device>/" ${WORKSPACE}/src/com/ustadmobile/app/tests/test-settings.xml
+sed -i.backup -e "s,.*<testposturl>.*,    <testposturl>${TESTPOSTURL}<\/testposturl>," ${WORKSPACE}/src/com/ustadmobile/test/port/j2me/test-settings.xml
+
+
 echo "Building J2ME.."
 cd ${WORKSPACE}
-#/usr/bin/ant -f antenna-build.xml getlibs
-#already did above.
-#sign it too!
 /usr/bin/ant -f antenna-build.xml -lib /opt/antenna sign
 
 if [ $? -eq 0 ]; then
     echo "Build success!\n"
 else
     echo "Build FAILED! Please Check. Exiting.."
+    echo "Killing server if started.."
+    kill $DHDSERVERPID
     exit 1;
 fi
 
@@ -140,6 +165,10 @@ if [ $? -eq 0 ];then
 	echo "Server up and running. Ping a success. PID: ${SERVERPID}"
 else
 	echo "Could not validate NodeJS server status. Failure!. Exiting.."
+        echo "Killing Server.."
+    	kill $DHDSERVERPID
+	echo "Killing nodejs if running.."
+	kill $SERVERPID
 	exit 1;
 fi
 
@@ -158,7 +187,11 @@ if [ $? -eq 0 ]; then
 else
     echo "    Connection and Gammu Commands to the Raspberry Pi 2 FAILED. Please Check."
     echo "Unable to access the Raspberry ! Please check its status."
-    SUCCESS="false"
+    SUCCESS="false" 
+    echo "Closing server.."
+    kill $DHDSERVERPID
+    echo "Killing nodejs server.."
+    kill $SERVERPID
     exit 1
 fi
 
@@ -197,6 +230,9 @@ else
     echo "FAILED to Kill NodeJS server. Please Check."
 fi
 
+echo "End of test. Killing Server.."
+kill ${DHDSERVERPID}
+
 SUCCESS="fail"
 for i in "${DEVICES[@]}"
 do
@@ -218,20 +254,23 @@ do
     fi
 
 done
+for file in ${RESULT_DIR}/node-qunit-testresults*
+        do
+            echo "${file}:" >> ${TRF}
+	    echo "" >> ${TRF}
+            cat $file >> ${TRF}
+	    echo "" >> ${TRF}
+	    echo "" >> ${TRF}
+        done
+
+#https://devserver2.ustadmobile.com:8081/job/UstadMobile-J2ME-Gammu-Pi/ws/test-results/results.html
 
 if [ "${SUCCESS}" = "true" ]; then
  	echo "All devices Ran Tests OK."
-	mkdir "${WORKSPACE}/test-results/"
-	TRF="${WORKSPACE}/test-results/results.html"
-	>${TRF}
-        for file in ${RESULT_DIR}/node-qunit-testresults*
-	do 
-	    echo "${file}:" >> ${TRF}
-	    cat $file >> ${TRF}
-	done
-	echo "The test results are here: https://devserver2.ustadmobile.com:8081/job/ustadmobilemicro-gammu-pi/ws/ports/j2me/test-results/results.html"
+	echo "The test results are here: ${TEST_RESULT_URL}"
 	exit 0;
 else
 	echo "Not All devices ran successfully..Please Check"
+	echo "The test results are here: ${TEST_RESULT_URL}"
 	exit 1;
 fi
