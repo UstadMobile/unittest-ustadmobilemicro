@@ -54,7 +54,7 @@ ASSET_PORT="6822"
 CONTROL_PORT="8621"
 SERVER="http://devserver2.ustadmobile.com"
 TESTPOSTURL="${SERVER}:${CONTROL_PORT}"
-MAX_RESULT_CHECK=300
+MAX_RESULT_CHECK=500
 HTTPD_PORT=8055
 DEVICES[0]="nokia"
 DEVICES[1]="alcatel"
@@ -211,7 +211,7 @@ while [[ "${yep}" == "nope" && ${tries} -lt ${MAX_RESULT_CHECK} ]]; do
 	    yep="nope"
 	    break
 	fi
-	echo "Result: ${yep}"
+	#echo "Result: ${yep}"
     done	
     tries=`expr ${tries} + 1`
 done
