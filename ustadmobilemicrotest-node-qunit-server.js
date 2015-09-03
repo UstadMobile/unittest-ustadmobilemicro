@@ -300,7 +300,7 @@ controlServer.httpProc = http.createServer(function (req, res) {
             fs.writeFile(testResultsFilename, textToSave, onFileWritten);
             
             var result = "";
-            if(parseInt(numFail) === 0 && logtext != "No errrors/Failures") {
+            if(parseInt(numFail) === 0 && logtext == "No errrors/Failures") {
                 result = "PASS";
             }else {
                 result = "FAIL";
